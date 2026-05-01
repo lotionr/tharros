@@ -1,0 +1,235 @@
+THARROS — Real-Time AI Interview Coach
+Hackathon: a16z x Overshoot x Fal x Mux Video Hackathon, May 1 2026
+Build window: 4 hours, solo
+Targeting: Prize #1 (Realtime/streaming) + Prize #2 (Multimodal)
+
+=== PRODUCT DESCRIPTION ===
+
+Tharros is a real-time AI interview coaching app. The user opens the app in their browser,
+clicks "Start Session," and receives live voice coaching through an earpiece while they
+practice answering interview questions.
+
+TWO parallel live pipelines run simultaneously:
+
+1. VIDEO PIPELINE: Webcam frames are grabbed every 800ms and sent to Overshoot VLM,
+   which analyzes eye contact, posture, facial expression, and visual pacing.
+
+2. AUDIO PIPELINE: Microphone audio is captured in 5-second chunks and sent to
+   fal/Wizper (Whisper v3) for real transcription. The transcript is scanned for filler
+   words (um, uh, like, you know). This is REAL speech-to-text, not a VLM estimate.
+
+Both pipelines feed into a single debounce engine. When a signal crosses threshold 3
+times in 5 seconds, ElevenLabs speaks a short coaching cue in the user's ear via
+WebSocket streaming TTS. The same signal is then suppressed for 15 seconds.
+
+The entire session is recorded via Mux Direct Upload. After the session ends:
+- The Mux recording is sent to fal/openrouter (Gemini 2.5 Flash) for post-session analysis
+- A written coaching report card is generated and displayed on the /playback page
+- The Mux player shows chapter markers at every moment ElevenLabs fired a cue
+
+=== TECH STACK ===
+
+- Next.js 14 (App Router), TypeScript, Tailwind CSS
+- Overshoot API: canvas frame every 800ms → VLM → visual coaching signals
+- fal/Wizper: 5s mic audio chunks → Whisper v3 transcription → filler word detection
+- fal/openrouter: post-session Mux URL → Gemini 2.5 Flash → written report card
+- ElevenLabs: Flash v2.5, WebSocket streaming TTS, unified debounce engine
+- Mux: Direct Upload + @mux/mux-player-react + custom chapter marker overlay
+
+=== ENVIRONMENT VARIABLES ===
+
+FAL_KEY=                        (server-side only — never NEXT_PUBLIC)
+NEXT_PUBLIC_OVERSHOOT_API_KEY=
+NEXT_PUBLIC_ELEVENLABS_API_KEY=
+NEXT_PUBLIC_ELEVENLABS_VOICE_ID=
+MUX_TOKEN_ID=
+MUX_TOKEN_SECRET=
+NEXT_PUBLIC_MUX_ENV_KEY=
+
+=== PAGES ===
+
+/ (main coach page)
+- Large webcam preview
+- Live signal overlay: badges for eye_contact, posture, expression, pacing (from Overshoot)
+  and filler_words (from fal/Whisper) — each shows score and flashes when firing
+- "Start Session" / "Stop Session" button
+- Session timer (counts up from 0:00)
+- Live transcript strip: last 10 words from Whisper, filler words highlighted in amber
+- Live cue log: last 5 ElevenLabs cues with timestamps
+- On stop: show "Processing..." then redirect to /playback?playbackId=xxx
+
+/playback
+- @mux/mux-player-react player (full width)
+- Custom annotation bar above the timeline: colored dots at each chapter cue timestamp
+  (hover to see the cue text)
+- Coaching report card (from fal/Gemini): overall score, confidence rating,
+  top strengths, top improvements, summary paragraph
+- Cue summary: count of fires per signal type this session
+- "Start New Session" button
+
+=== API ROUTES ===
+
+POST /api/mux-upload
+- Server-side. Creates Mux Direct Upload URL.
+- Uses MUX_TOKEN_ID + MUX_TOKEN_SECRET (never exposed to client)
+- Returns { uploadUrl, uploadId }
+
+GET /api/mux-asset?uploadId=xxx
+- Server-side. Polls Mux for asset ready status.
+- Returns { assetId, playbackId, status }
+
+POST /api/fal-proxy
+- Server-side proxy for ALL fal API calls.
+- Body: { endpoint: string, input: object }
+- Calls fal.subscribe(endpoint, { input }) with FAL_KEY from env
+- Returns result.data as JSON
+- Used for: Wizper transcription (live) + Gemini analysis (post-session)
+
+=== OVERSHOOT VLM PROMPT ===
+
+System: You are an expert interview coach analyzing a video frame. Return ONLY valid JSON, no other text.
+
+User: Analyze this interview candidate's body language and return exactly this JSON:
+{
+  "eye_contact": { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 5> },
+  "posture":     { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 5> },
+  "expression":  { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 6> },
+  "pacing":      { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 4 or score > 9> }
+}
+
+Note: pacing is VISUAL pacing only (rushed movements, breathless expression).
+Audio pacing and filler words are handled by the separate audio pipeline.
+Cue examples: "Look at the camera", "Sit up straight", "Show more energy", "Slow down"
+
+=== FAL/WIZPER CALL (per 5-second audio chunk) ===
+
+endpoint: "fal-ai/wizper"
+input: {
+  audio_url: <fal.storage.upload(audioBlob) result>,
+  task: "transcribe",
+  chunk_level: "word",
+  version: "3"
+}
+
+Filler words to detect: "um", "uh", "like", "you know", "so", "basically", "literally"
+Fire if >= 2 fillers found in the 5-second chunk.
+Cue: `You said "${firstFiller}" — keep going`
+
+=== FAL/OPENROUTER CALL (post-session, once) ===
+
+endpoint: "openrouter/router/video"
+input: {
+  video_urls: ["https://stream.mux.com/{playbackId}.m3u8"],
+  model: "google/gemini-2.5-flash",
+  system_prompt: "You are a professional interview coach. Be specific and constructive. Return only valid JSON, no other text.",
+  prompt: "Analyze this interview practice session (under 3 minutes). Return exactly this JSON:
+{
+  \"overall_score\": <1-10>,
+  \"confidence_rating\": \"<Poor|Fair|Good|Strong>\",
+  \"top_strengths\": [\"<strength 1>\", \"<strength 2>\"],
+  \"top_improvements\": [\"<improvement 1>\", \"<improvement 2>\"],
+  \"summary\": \"<2-3 sentence coaching summary>\"
+}"
+}
+
+=== DEBOUNCE ENGINE ===
+
+Single engine handles ALL signal keys (eye_contact, posture, expression, pacing, filler_words).
+- Track per key: { fireCount, windowStart, suppressedUntil }
+- Each fire: increment fireCount; reset window if > 5s since windowStart
+- Trigger: fireCount >= 3 AND Date.now() > suppressedUntil
+- On trigger: speak via ElevenLabs + set suppressedUntil = now + 15000 + reset count
+- Side effect: push to chapterCues array with elapsed session time
+
+=== FEATURES (for feature_list.json) ===
+
+The initializer should expand these into approximately 35 concrete, testable features.
+
+Categories:
+  webcam               - camera access and display
+  overshoot            - visual VLM pipeline
+  fal-whisper          - audio transcription pipeline
+  fal-analysis         - post-session report card
+  elevenlabs           - voice output and debounce
+  mux-recording        - session recording and upload
+  playback-ui          - post-session review page
+  session-flow         - start/stop/redirect lifecycle
+  coach-overlay        - live signal display
+
+Core features to cover:
+
+WEBCAM (3)
+1. Webcam stream displays in browser via getUserMedia
+2. Video element shows live feed without errors
+3. Camera permission denial handled gracefully with error message
+
+SESSION FLOW (4)
+4. "Start Session" button activates coaching mode (starts both pipelines + recording)
+5. "Stop Session" button stops all pipelines and triggers upload completion
+6. Session timer counts up from 0:00 during active session
+7. After stop: app shows "Processing..." and polls /api/mux-asset until ready, then redirects
+
+OVERSHOOT PIPELINE (5)
+8. Canvas frame extracted from video element every 800ms during session
+9. Frame sent to Overshoot as base64 JPEG with correct VLM prompt
+10. Overshoot response parsed into VisualSignals type without crashing on malformed JSON
+11. Signal overlay badges update with latest scores in real time
+12. Overshoot fire:true signals route to debounce engine
+
+FAL-WHISPER PIPELINE (6)
+13. Separate audio-only MediaRecorder captures mic in 5-second chunks
+14. Audio chunk uploaded to fal storage via /api/fal-proxy
+15. Wizper transcription returned with word-level chunks
+16. Transcript scanned for filler words correctly
+17. Filler signal (>= 2 fillers) routes to debounce engine
+18. Live transcript strip on main page shows last ~10 words, fillers highlighted
+
+FAL POST-SESSION ANALYSIS (4)
+19. /api/fal-proxy accepts POST with endpoint + input and returns fal result
+20. After session, Mux HLS URL sent to Gemini 2.5 Flash via fal-proxy
+21. Report card JSON parsed and stored in Zustand
+22. Report card rendered on /playback page with score, rating, strengths, improvements
+
+ELEVENLABS (4)
+23. ElevenLabs WebSocket opens on session start
+24. Debounce engine triggers ElevenLabs speak() on threshold (3 fires in 5s)
+25. Same signal suppressed for 15s after speaking
+26. Audio plays through speakers/earpiece correctly
+
+MUX RECORDING (5)
+27. /api/mux-upload creates Direct Upload URL
+28. Primary MediaRecorder (video+audio) streams to Mux upload URL
+29. Mux upload completes when session stops
+30. /api/mux-asset polls and returns playbackId when asset is ready
+31. Each ElevenLabs trigger recorded as chapter cue with elapsed timestamp
+
+PLAYBACK UI (4)
+32. Mux player renders on /playback with correct playbackId
+33. Chapter cue annotations shown as dots above the player timeline
+34. Coaching report card (fal/Gemini) shown alongside the player
+35. "Start New Session" button navigates back to /
+
+RESILIENCE (3)
+36. Overshoot malformed JSON does not crash the app
+37. ElevenLabs WebSocket disconnect handled gracefully (reconnect or silence)
+38. fal-proxy errors returned as 500 with message, client shows error toast
+
+=== SUCCESS CRITERIA FOR DEMO ===
+
+1. Click Start Session → webcam shows, both overlays appear (visual signals + live transcript)
+2. Give 30-second pitch → at least 2-3 ElevenLabs cues fire audibly through earpiece
+3. Show filler word detection working: say "um" a few times → amber highlight in transcript
+4. Click Stop → "Processing..." → redirect to /playback
+5. Mux player loads with chapter dot markers visible on timeline
+6. Coaching report card visible: score, strengths, improvements from Gemini
+7. App does not crash during the full 3-minute demo
+
+=== JUDGE PITCH (say this) ===
+
+"Tharros processes three modalities simultaneously in real time:
+Video — Overshoot VLM watches body language every 800 milliseconds.
+Audio — fal/Whisper transcribes my speech and catches filler words every 5 seconds.
+Voice — ElevenLabs speaks a coaching cue in my ear within one second of a threshold crossing.
+
+Post-session, fal runs the full recording through Gemini 2.5 Flash and generates a
+written coaching report. Four APIs, four distinct jobs, all live."
