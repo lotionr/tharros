@@ -41,7 +41,7 @@
       "Click 'Start Session'",
       "Verify session timer starts and both video and audio pipelines begin"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "session-flow-002",
@@ -52,7 +52,7 @@
       "Click 'Stop Session'",
       "Verify timer stops, pipelines stop, and Mux upload finalizes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "session-flow-003",
@@ -63,7 +63,7 @@
       "Observe the timer counting up from 0:00",
       "Stop session and verify timer stops"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "session-flow-004",
@@ -74,7 +74,7 @@
       "Verify 'Processing...' message appears",
       "Verify app polls /api/mux-asset and redirects to /playback?playbackId=xxx when ready"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "overshoot-001",
