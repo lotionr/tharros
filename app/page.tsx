@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCoachingStore } from '@/lib/coaching-store';
 import { startOvershootLoop } from '@/lib/overshoot';
+import { startWhisperPipeline } from '@/lib/fal-whisper';
 import {
   openElevenLabsSocket,
   closeElevenLabsSocket,
@@ -24,6 +25,7 @@ export default function Home() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const overshootStopRef = useRef<(() => void) | null>(null);
+  const whisperStopRef = useRef<(() => void) | null>(null);
   const uploadIdRef = useRef<string | null>(null);
 
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -36,7 +38,14 @@ export default function Home() {
     setSessionActive,
     resetSession,
     setCurrentSignals,
+    setLatestTranscript,
+    incrementFillerCount,
     addChapterCue,
+    addCueLog,
+    currentSignals,
+    latestTranscript,
+    fillerCount,
+    cueLog,
   } = useCoachingStore();
 
   // Camera init on mount
@@ -86,6 +95,7 @@ export default function Home() {
   );
 
   const startSession = useCallback(async () => {
+    if (!streamRef.current) return;
     resetSession();
     setElapsed(0);
     setProcessing(false);
@@ -104,7 +114,7 @@ export default function Home() {
     setSessionActive(true, now);
 
     // Init debounce engine + ElevenLabs
-    initDebounceEngine(now, addChapterCue);
+    initDebounceEngine(now, addChapterCue, addCueLog);
     const voiceId = process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ?? '';
     const elKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY ?? '';
     if (voiceId && elKey) openElevenLabsSocket(voiceId, elKey);
@@ -118,21 +128,29 @@ export default function Home() {
       );
     }
 
+    // Start Whisper audio pipeline
+    whisperStopRef.current = startWhisperPipeline(
+      streamRef.current,
+      onSignalFire,
+      (text, fillers) => {
+        setLatestTranscript(text);
+        if (fillers.length > 0) incrementFillerCount(fillers.length);
+      }
+    );
+
     // Start elapsed timer
     timerRef.current = setInterval(() => {
       setElapsed((s) => s + 1);
     }, 1000);
-  }, [resetSession, setSessionActive, setCurrentSignals, addChapterCue]);
+  }, [resetSession, setSessionActive, setCurrentSignals, addChapterCue, addCueLog, setLatestTranscript, incrementFillerCount]);
 
   const stopSession = useCallback(() => {
-    // Stop Overshoot loop
     overshootStopRef.current?.();
     overshootStopRef.current = null;
-
-    // Stop ElevenLabs
+    whisperStopRef.current?.();
+    whisperStopRef.current = null;
     closeElevenLabsSocket();
 
-    // Stop timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -141,7 +159,6 @@ export default function Home() {
     setSessionActive(false);
     setProcessing(true);
 
-    // Start polling Mux for asset readiness
     if (uploadIdRef.current) {
       pollMuxAsset(uploadIdRef.current);
     } else {
@@ -153,16 +170,20 @@ export default function Home() {
   useEffect(() => {
     return () => {
       overshootStopRef.current?.();
+      whisperStopRef.current?.();
       closeElevenLabsSocket();
       if (timerRef.current) clearInterval(timerRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
 
+  // Render last 10 words of transcript with fillers highlighted
+  const transcriptWords = latestTranscript.trim().split(/\s+/).filter(Boolean).slice(-10);
+
   return (
-    <main className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6">
-      <h1 className="text-3xl font-bold mb-2 tracking-tight">Tharros</h1>
-      <p className="text-gray-400 mb-8 text-sm">Real-time AI Interview Coach</p>
+    <main className="min-h-screen bg-gray-950 text-white flex flex-col items-center p-6 pt-10">
+      <h1 className="text-3xl font-bold mb-1 tracking-tight">Tharros</h1>
+      <p className="text-gray-400 mb-6 text-sm">Real-time AI Interview Coach</p>
 
       {/* Webcam */}
       <div className="relative w-full max-w-2xl aspect-video bg-gray-900 rounded-2xl overflow-hidden shadow-2xl">
@@ -172,16 +193,36 @@ export default function Home() {
           </div>
         ) : (
           <>
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              autoPlay
-              playsInline
-              muted
-            />
+            <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
             {!cameraReady && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <p className="text-gray-500 text-sm">Starting camera…</p>
+              </div>
+            )}
+
+            {/* Live signal badges */}
+            {isSessionActive && currentSignals && (
+              <div className="absolute top-3 left-3 flex flex-col gap-1">
+                {(['eye_contact', 'posture', 'expression', 'pacing'] as const).map((key) => {
+                  const sig = currentSignals[key];
+                  return (
+                    <div
+                      key={key}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono backdrop-blur-sm ${
+                        sig.fire ? 'bg-red-500/80 text-white' : 'bg-black/60 text-green-400'
+                      }`}
+                    >
+                      <span className="capitalize">{key.replace('_', ' ')}</span>
+                      <span className="font-bold">{sig.score}/10</span>
+                    </div>
+                  );
+                })}
+                {fillerCount > 0 && (
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono bg-amber-500/80 text-white backdrop-blur-sm">
+                    <span>Fillers</span>
+                    <span className="font-bold">{fillerCount}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -203,15 +244,13 @@ export default function Home() {
       </div>
 
       {/* Controls */}
-      <div className="mt-6 flex flex-col items-center gap-2">
+      <div className="mt-5 flex flex-col items-center gap-2">
         {!processing && (
           <button
             disabled={!cameraReady || !!cameraError}
             onClick={isSessionActive ? stopSession : startSession}
             className={`px-8 py-3 rounded-xl font-semibold text-sm transition-colors disabled:bg-gray-700 disabled:cursor-not-allowed ${
-              isSessionActive
-                ? 'bg-red-600 hover:bg-red-500'
-                : 'bg-green-600 hover:bg-green-500'
+              isSessionActive ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'
             }`}
           >
             {isSessionActive ? 'Stop Session' : 'Start Session'}
@@ -221,6 +260,39 @@ export default function Home() {
           <p className="text-gray-500 text-xs">Session active — {formatTime(elapsed)}</p>
         )}
       </div>
+
+      {/* Live transcript strip */}
+      {isSessionActive && transcriptWords.length > 0 && (
+        <div className="mt-4 w-full max-w-2xl bg-gray-900 rounded-xl px-4 py-2 text-sm">
+          <span className="text-gray-500 text-xs mr-2">Transcript:</span>
+          {transcriptWords.map((word, i) => {
+            const clean = word.toLowerCase().replace(/[^a-z]/g, '');
+            const isFiller = ['um', 'uh', 'like', 'so', 'basically', 'literally'].includes(clean)
+              || word.toLowerCase().includes('you know');
+            return (
+              <span key={i} className={isFiller ? 'text-amber-400 font-semibold' : 'text-gray-200'}>
+                {word}{' '}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Cue log */}
+      {isSessionActive && cueLog.length > 0 && (
+        <div className="mt-3 w-full max-w-2xl bg-gray-900 rounded-xl px-4 py-2">
+          <p className="text-gray-500 text-xs mb-1">Recent cues</p>
+          {cueLog.slice(-5).map((entry, i) => (
+            <p key={i} className="text-xs text-gray-300">
+              <span className="text-gray-500">{new Date(entry.time).toLocaleTimeString([], { timeStyle: 'medium' })}</span>
+              {' · '}
+              <span className="text-green-400">{entry.signal}</span>
+              {' — '}
+              {entry.cue}
+            </p>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

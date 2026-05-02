@@ -140,7 +140,7 @@
       "Open DevTools console",
       "Verify audio chunks are produced every 5 seconds"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-whisper-002",
@@ -151,7 +151,7 @@
       "Speak for 5 seconds",
       "Verify /api/fal-proxy receives the audio chunk upload request"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-whisper-003",
@@ -162,7 +162,7 @@
       "Speak clearly for 5 seconds",
       "Verify Wizper returns a transcript with word-level data"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-whisper-004",
@@ -173,7 +173,7 @@
       "Say 'um uh like you know' clearly",
       "Verify filler words are detected in the transcript scan"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-whisper-005",
@@ -184,7 +184,7 @@
       "Say at least 2 filler words in a 5-second chunk",
       "Verify the debounce engine receives the filler_words signal"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-whisper-006",
@@ -195,7 +195,7 @@
       "Speak several sentences including filler words",
       "Verify transcript strip updates and filler words appear in amber"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-analysis-001",
@@ -206,7 +206,7 @@
       "Verify it calls fal.subscribe and returns result.data",
       "Verify FAL_KEY is not exposed to the client"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-analysis-002",
@@ -217,7 +217,7 @@
       "Verify /api/fal-proxy is called with openrouter/router/video endpoint",
       "Verify the Mux HLS URL is included in the request"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-analysis-003",
@@ -228,7 +228,7 @@
       "Open DevTools and inspect Zustand store",
       "Verify reportCard is populated with overall_score, confidence_rating, top_strengths, top_improvements, summary"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-analysis-004",
@@ -283,7 +283,7 @@
       "Trigger an ElevenLabs cue",
       "Verify the voice coaching cue plays audibly"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "mux-recording-001",

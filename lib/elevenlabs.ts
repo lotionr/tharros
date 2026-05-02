@@ -1,4 +1,4 @@
-import type { ChapterCue } from './coaching-store';
+import type { ChapterCue, CueLogEntry } from './coaching-store';
 
 // ── Debounce state ────────────────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@ const debounceState: Record<string, SignalState> = {};
 let sessionStartTime = 0;
 let chapterCues: ChapterCue[] = [];
 let onChapterCue: ((cue: ChapterCue) => void) | null = null;
+let onCueLog: ((entry: CueLogEntry) => void) | null = null;
 
 // ── ElevenLabs WebSocket ──────────────────────────────────────────────────────
 
@@ -96,17 +97,20 @@ function recordChapterCue(signalKey: string, cue: string): void {
   };
   chapterCues.push(entry);
   onChapterCue?.(entry);
+  onCueLog?.({ time: Date.now(), signal: signalKey, cue });
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function initDebounceEngine(
   startTime: number,
-  chapterCueCallback: (cue: ChapterCue) => void
+  chapterCueCallback: (cue: ChapterCue) => void,
+  cueLogCallback?: (entry: CueLogEntry) => void
 ): void {
   sessionStartTime = startTime;
   chapterCues = [];
   onChapterCue = chapterCueCallback;
+  onCueLog = cueLogCallback ?? null;
   // Reset all per-signal state
   for (const key of Object.keys(debounceState)) {
     delete debounceState[key];
