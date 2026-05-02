@@ -33,7 +33,7 @@ async function transcribeChunk(audioUrl: string): Promise<string> {
       input: {
         audio_url: audioUrl,
         task: 'transcribe',
-        chunk_level: 'word',
+        chunk_level: 'segment',
         version: '3',
       },
     }),
