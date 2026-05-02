@@ -239,7 +239,7 @@
       "Navigate to /playback",
       "Verify overall_score, confidence_rating, top_strengths, top_improvements, and summary are all visible"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "elevenlabs-001",
@@ -349,7 +349,7 @@
       "Verify @mux/mux-player-react renders with the correct playbackId",
       "Verify video loads and is playable"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "playback-ui-002",
@@ -360,7 +360,7 @@
       "Navigate to /playback",
       "Verify colored dots appear above the timeline at chapter cue positions; hover to see cue text"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "playback-ui-003",
@@ -371,7 +371,7 @@
       "Navigate to /playback",
       "Verify the report card section shows overall score, confidence rating, strengths, improvements, and summary"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "playback-ui-004",
@@ -382,7 +382,7 @@
       "Click 'Start New Session'",
       "Verify browser navigates back to /"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "coach-overlay-001",
@@ -393,7 +393,7 @@
       "Verify badges for eye_contact, posture, expression, pacing, and filler_words are visible",
       "Verify each badge shows a score"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "resilience-001",
