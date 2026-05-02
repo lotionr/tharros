@@ -7,8 +7,9 @@ export type OvershootErrorCallback = (msg: string) => void;
 
 const API_URL = 'https://cluster1.overshoot.ai/api/v0.2';
 
-const PROMPT = `You are an expert interview coach. Analyze the candidate's body language.
-Return ONLY valid JSON exactly matching this schema — no other text.`;
+const PROMPT = `You are an expert interview coach analyzing a live interview practice session.
+Score generously — a typical competent candidate in a normal office/home setting should score 6-8.
+Reserve scores below 4 for clear, obvious problems. Return ONLY valid JSON exactly matching this schema — no other text.`;
 
 const OUTPUT_SCHEMA = {
   type: 'object',

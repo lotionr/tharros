@@ -224,9 +224,9 @@ export default function Home() {
               <div className="absolute top-3 left-3 flex flex-col gap-1">
                 {(['eye_contact', 'posture', 'expression', 'pacing'] as const).map((key) => {
                   const sig = currentSignals[key];
-                  const color = sig.score >= 7
+                  const color = sig.score >= 6
                     ? 'bg-black/60 text-green-400'
-                    : sig.score >= 4
+                    : sig.score >= 3
                     ? 'bg-yellow-500/70 text-white'
                     : 'bg-red-500/80 text-white';
                   return (
