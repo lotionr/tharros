@@ -4,6 +4,7 @@ const FILLERS = ['um', 'uh', 'like', 'you know', 'so', 'basically', 'literally']
 const CHUNK_INTERVAL_MS = 5000;
 
 export type TranscriptUpdateCallback = (text: string, fillerWords: string[]) => void;
+export type ErrorCallback = (msg: string) => void;
 
 async function uploadAudioBlob(blob: Blob): Promise<string> {
   const file = new File([blob], 'chunk.webm', { type: 'audio/webm' });
@@ -54,7 +55,8 @@ function detectFillers(text: string): string[] {
 export function startWhisperPipeline(
   stream: MediaStream,
   onSignalFire: SignalFireCallback,
-  onTranscriptUpdate: TranscriptUpdateCallback
+  onTranscriptUpdate: TranscriptUpdateCallback,
+  onError?: ErrorCallback
 ): () => void {
   // Audio-only stream (clone video stream's audio tracks)
   const audioTracks = stream.getAudioTracks();
@@ -94,8 +96,9 @@ export function startWhisperPipeline(
         if (fillers.length >= 2) {
           onSignalFire('filler_words', `You said "${fillers[0]}" — keep going`);
         }
-      } catch {
-        // Network/API error — skip this chunk silently
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'fal-proxy error';
+        onError?.(msg);
       }
     };
 

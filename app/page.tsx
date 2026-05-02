@@ -33,6 +33,7 @@ export default function Home() {
   const [cameraReady, setCameraReady] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [processing, setProcessing] = useState(false);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
 
   const {
     isSessionActive,
@@ -130,6 +131,10 @@ export default function Home() {
       (text, fillers) => {
         setLatestTranscript(text);
         if (fillers.length > 0) incrementFillerCount(fillers.length);
+      },
+      (msg) => {
+        setErrorToast(msg);
+        setTimeout(() => setErrorToast(null), 5000);
       }
     );
 
@@ -274,6 +279,14 @@ export default function Home() {
               </span>
             );
           })}
+        </div>
+      )}
+
+      {/* Error toast */}
+      {errorToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-red-900 border border-red-600 text-red-200 text-sm px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 z-50">
+          <span>{errorToast}</span>
+          <button onClick={() => setErrorToast(null)} className="text-red-400 hover:text-white">✕</button>
         </div>
       )}
 

@@ -19,17 +19,24 @@ let onCueLog: ((entry: CueLogEntry) => void) | null = null;
 
 let ws: WebSocket | null = null;
 let audioCtx: AudioContext | null = null;
+let intentionallyClosed = false;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let activeVoiceId = '';
+let activeApiKey = '';
 
 export function openElevenLabsSocket(voiceId: string, apiKey: string): void {
   if (ws && ws.readyState === WebSocket.OPEN) return;
 
-  audioCtx = new AudioContext();
+  intentionallyClosed = false;
+  activeVoiceId = voiceId;
+  activeApiKey = apiKey;
+
+  if (!audioCtx) audioCtx = new AudioContext();
 
   const url = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_flash_v2_5`;
   ws = new WebSocket(url);
 
   ws.onopen = () => {
-    // Send BOS (beginning-of-stream) message
     ws!.send(
       JSON.stringify({
         text: ' ',
@@ -63,10 +70,20 @@ export function openElevenLabsSocket(voiceId: string, apiKey: string): void {
 
   ws.onclose = () => {
     ws = null;
+    // Auto-reconnect after 2s if session is still active
+    if (!intentionallyClosed && activeVoiceId && activeApiKey) {
+      reconnectTimeout = setTimeout(() => {
+        if (!intentionallyClosed) openElevenLabsSocket(activeVoiceId, activeApiKey);
+      }, 2000);
+    }
   };
 }
 
 export function closeElevenLabsSocket(): void {
+  intentionallyClosed = true;
+  activeVoiceId = '';
+  activeApiKey = '';
+  if (reconnectTimeout) { clearTimeout(reconnectTimeout); reconnectTimeout = null; }
   if (ws) {
     try { ws.close(); } catch { /* ignore */ }
     ws = null;

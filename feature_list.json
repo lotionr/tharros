@@ -404,7 +404,7 @@
       "Verify the app catches the error and continues running",
       "Verify no unhandled exception appears in the console"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "resilience-002",
@@ -415,7 +415,7 @@
       "Simulate WebSocket disconnect",
       "Verify app does not crash and either reconnects or silently skips TTS"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "resilience-003",
@@ -426,6 +426,6 @@
       "Verify /api/fal-proxy returns HTTP 500 with an error message",
       "Verify the client displays an error toast"
     ],
-    "passes": false
+    "passes": true
   }
 ]
