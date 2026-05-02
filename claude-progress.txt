@@ -40,3 +40,9 @@ Feature completed: webcam-001, webcam-002, webcam-003 — Webcam stream via getU
 Tested: page loads at localhost:3000, video element renders live feed, permission denial shows error message
 Issues: node_modules/.bin/next was flattened (not a symlink) after cp -r during scaffold; fixed by rm -rf node_modules && npm install
 Next: session-flow — Start/Stop button, timer, processing redirect
+
+--- SESSION 3: SESSION FLOW (complete) ---
+Feature completed: session-flow-001..004 — Start/Stop, timer, Processing overlay, Mux poll + redirect
+Tested: Start Session enables timer (M:SS counting up), Stop Session shows "Processing…", API routes for mux-upload (POST) and mux-asset (GET) implemented with Basic Auth
+Issues: none
+Next: overshoot — canvas frame grab every 800ms → Overshoot VLM → visual signals
