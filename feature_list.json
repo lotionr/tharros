@@ -294,7 +294,7 @@
       "Verify response contains { uploadUrl, uploadId }",
       "Verify MUX_TOKEN_ID and MUX_TOKEN_SECRET are used server-side only"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "mux-recording-002",
@@ -305,7 +305,7 @@
       "Open DevTools Network tab",
       "Verify video+audio data is being sent to the Mux upload URL"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "mux-recording-003",
@@ -316,7 +316,7 @@
       "Verify the Mux upload request finishes successfully",
       "Verify no data is lost on stop"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "mux-recording-004",
@@ -327,7 +327,7 @@
       "Verify GET /api/mux-asset?uploadId=xxx is called repeatedly",
       "Verify it returns { assetId, playbackId, status } when ready"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "mux-recording-005",
@@ -338,7 +338,7 @@
       "Stop the session and navigate to /playback",
       "Verify chapter cues appear with correct elapsed timestamps"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "playback-ui-001",

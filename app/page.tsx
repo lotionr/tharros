@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCoachingStore } from '@/lib/coaching-store';
 import { startOvershootLoop } from '@/lib/overshoot';
 import { startWhisperPipeline } from '@/lib/fal-whisper';
+import { startMuxRecording, type MuxSession } from '@/lib/mux';
 import {
   openElevenLabsSocket,
   closeElevenLabsSocket,
@@ -26,7 +27,7 @@ export default function Home() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const overshootStopRef = useRef<(() => void) | null>(null);
   const whisperStopRef = useRef<(() => void) | null>(null);
-  const uploadIdRef = useRef<string | null>(null);
+  const muxSessionRef = useRef<MuxSession | null>(null);
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -102,14 +103,8 @@ export default function Home() {
 
     const now = Date.now();
 
-    // Get Mux upload URL
-    try {
-      const res = await fetch('/api/mux-upload', { method: 'POST' });
-      const { uploadId } = await res.json();
-      uploadIdRef.current = uploadId ?? null;
-    } catch {
-      uploadIdRef.current = null;
-    }
+    // Start Mux recording (primary video+audio recorder)
+    muxSessionRef.current = await startMuxRecording(streamRef.current);
 
     setSessionActive(true, now);
 
@@ -144,7 +139,7 @@ export default function Home() {
     }, 1000);
   }, [resetSession, setSessionActive, setCurrentSignals, addChapterCue, addCueLog, setLatestTranscript, incrementFillerCount]);
 
-  const stopSession = useCallback(() => {
+  const stopSession = useCallback(async () => {
     overshootStopRef.current?.();
     overshootStopRef.current = null;
     whisperStopRef.current?.();
@@ -159,8 +154,11 @@ export default function Home() {
     setSessionActive(false);
     setProcessing(true);
 
-    if (uploadIdRef.current) {
-      pollMuxAsset(uploadIdRef.current);
+    const mux = muxSessionRef.current;
+    muxSessionRef.current = null;
+    if (mux) {
+      await mux.stop(); // finalize upload
+      pollMuxAsset(mux.uploadId);
     } else {
       setProcessing(false);
     }
@@ -171,6 +169,7 @@ export default function Home() {
     return () => {
       overshootStopRef.current?.();
       whisperStopRef.current?.();
+      muxSessionRef.current?.stop().catch(() => {});
       closeElevenLabsSocket();
       if (timerRef.current) clearInterval(timerRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
