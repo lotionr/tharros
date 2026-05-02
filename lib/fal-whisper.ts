@@ -2,13 +2,14 @@ import type { SignalFireCallback } from './overshoot';
 
 const FILLERS = ['um', 'uh', 'like', 'you know', 'so', 'basically', 'literally'];
 const CHUNK_INTERVAL_MS = 5000;
+const MIN_BLOB_SIZE = 1000; // bytes — skip near-silent / empty chunks
 
 export type TranscriptUpdateCallback = (text: string, fillerWords: string[]) => void;
 export type ErrorCallback = (msg: string) => void;
 
 async function uploadAudioBlob(blob: Blob): Promise<string> {
   console.log('[Whisper] uploading audio chunk', blob.size, 'bytes');
-  const file = new File([blob], 'chunk.webm', { type: 'audio/webm' });
+  const file = new File([blob], 'chunk.webm', { type: blob.type || 'audio/webm' });
   const form = new FormData();
   form.append('file', file);
   const res = await fetch('/api/fal-proxy', { method: 'POST', body: form });
@@ -44,19 +45,15 @@ async function transcribeChunk(audioUrl: string): Promise<string> {
   const data = await res.json();
   if (data.error) throw new Error(`Wizper error: ${data.error}`);
   const text = (data.text as string) ?? '';
-  console.log('[Whisper] transcript:', text);
+  console.log('[Whisper] transcript:', text || '(empty)');
   return text;
 }
 
 function detectFillers(text: string): string[] {
   const lower = text.toLowerCase();
-  const words = lower.split(/\s+/);
   const found: string[] = [];
-
-  // Check multi-word fillers first
   if (lower.includes('you know')) found.push('you know');
-
-  for (const w of words) {
+  for (const w of lower.split(/\s+/)) {
     const clean = w.replace(/[^a-z]/g, '');
     if (['um', 'uh', 'like', 'so', 'basically', 'literally'].includes(clean)) {
       found.push(clean);
@@ -65,71 +62,90 @@ function detectFillers(text: string): string[] {
   return found;
 }
 
+function getBestMimeType(): string {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/mp4',
+  ];
+  return candidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+}
+
 export function startWhisperPipeline(
   stream: MediaStream,
   onSignalFire: SignalFireCallback,
   onTranscriptUpdate: TranscriptUpdateCallback,
   onError?: ErrorCallback
 ): () => void {
-  // Audio-only stream (clone video stream's audio tracks)
   const audioTracks = stream.getAudioTracks();
-  if (audioTracks.length === 0) return () => {};
+  if (audioTracks.length === 0) { console.warn('[Whisper] no audio tracks'); return () => {}; }
 
   const audioStream = new MediaStream(audioTracks);
+  const mimeType = getBestMimeType();
+  console.log('[Whisper] using mimeType:', mimeType || '(browser default)');
 
   let stopped = false;
-  let recorder: MediaRecorder | null = null;
-  let chunks: Blob[] = [];
   let intervalId: ReturnType<typeof setInterval> | null = null;
+  let currentRecorder: MediaRecorder | null = null;
 
-  function startChunk() {
-    if (stopped) return;
-    chunks = [];
-    try {
-      recorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
-    } catch {
-      recorder = new MediaRecorder(audioStream);
-    }
+  function recordChunk(): Promise<Blob> {
+    return new Promise((resolve) => {
+      const chunks: Blob[] = [];  // local per-chunk — no shared state
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-
-    recorder.onstop = async () => {
-      if (stopped || chunks.length === 0) return;
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      chunks = [];
+      let rec: MediaRecorder;
       try {
+        rec = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
+      } catch {
+        rec = new MediaRecorder(audioStream);
+      }
+      currentRecorder = rec;
+
+      rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+      rec.start();
+
+      setTimeout(() => {
+        if (rec.state !== 'inactive') rec.stop();
+      }, CHUNK_INTERVAL_MS);
+    });
+  }
+
+  async function loop() {
+    while (!stopped) {
+      try {
+        const blob = await recordChunk();
+        if (stopped) break;
+
+        if (blob.size < MIN_BLOB_SIZE) {
+          console.log('[Whisper] chunk too small, skipping', blob.size, 'bytes');
+          continue;
+        }
+
         const audioUrl = await uploadAudioBlob(blob);
         const text = await transcribeChunk(audioUrl);
         const fillers = detectFillers(text);
 
         onTranscriptUpdate(text, fillers);
-
         if (fillers.length >= 2) {
           onSignalFire('filler_words', `You said "${fillers[0]}" — keep going`);
         }
       } catch (err: unknown) {
+        if (stopped) break;
         const msg = err instanceof Error ? err.message : 'fal-proxy error';
         console.error('[Whisper]', msg);
         onError?.(msg);
+        // Brief pause before retrying so we don't hammer on persistent errors
+        await new Promise((r) => setTimeout(r, 2000));
       }
-    };
-
-    recorder.start();
+    }
   }
 
-  startChunk();
-
-  intervalId = setInterval(() => {
-    if (stopped) return;
-    recorder?.stop();
-    startChunk();
-  }, CHUNK_INTERVAL_MS);
+  loop();
 
   return () => {
     stopped = true;
     if (intervalId) clearInterval(intervalId);
-    try { recorder?.stop(); } catch { /* ignore */ }
+    try { currentRecorder?.stop(); } catch { /* ignore */ }
   };
 }
