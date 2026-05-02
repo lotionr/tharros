@@ -34,6 +34,7 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [overshootError, setOvershootError] = useState<string | null>(null);
 
   const {
     isSessionActive,
@@ -116,11 +117,13 @@ export default function Home() {
     if (voiceId && elKey) openElevenLabsSocket(voiceId, elKey);
 
     // Start Overshoot frame loop
+    setOvershootError(null);
     if (videoRef.current) {
       overshootStopRef.current = startOvershootLoop(
         videoRef.current,
         onSignalFire,
-        setCurrentSignals
+        setCurrentSignals,
+        (msg) => setOvershootError(msg)
       );
     }
 
@@ -201,6 +204,13 @@ export default function Home() {
             {!cameraReady && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <p className="text-gray-500 text-sm">Starting camera…</p>
+              </div>
+            )}
+
+            {/* Overshoot error badge */}
+            {isSessionActive && overshootError && !currentSignals && (
+              <div className="absolute top-3 left-3 px-2 py-1 rounded-md text-xs bg-red-900/80 text-red-300 backdrop-blur-sm max-w-[200px]">
+                Overshoot: {overshootError}
               </div>
             )}
 

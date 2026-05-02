@@ -33,15 +33,16 @@ export function openElevenLabsSocket(voiceId: string, apiKey: string): void {
 
   if (!audioCtx) audioCtx = new AudioContext();
 
-  const url = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_flash_v2_5`;
+  // API key must be in the URL — WebSocket handshake doesn't support custom headers in browsers
+  const url = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_flash_v2_5&xi_api_key=${apiKey}`;
   ws = new WebSocket(url);
 
   ws.onopen = () => {
+    // BOS message — send voice settings to initialise the stream
     ws!.send(
       JSON.stringify({
         text: ' ',
         voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-        xi_api_key: apiKey,
       })
     );
   };
