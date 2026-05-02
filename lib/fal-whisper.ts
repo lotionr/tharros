@@ -7,16 +7,23 @@ export type TranscriptUpdateCallback = (text: string, fillerWords: string[]) => 
 export type ErrorCallback = (msg: string) => void;
 
 async function uploadAudioBlob(blob: Blob): Promise<string> {
+  console.log('[Whisper] uploading audio chunk', blob.size, 'bytes');
   const file = new File([blob], 'chunk.webm', { type: 'audio/webm' });
   const form = new FormData();
   form.append('file', file);
   const res = await fetch('/api/fal-proxy', { method: 'POST', body: form });
-  if (!res.ok) throw new Error('Upload failed');
-  const { url } = await res.json();
-  return url;
+  if (!res.ok) {
+    const body = await res.text().catch(() => res.statusText);
+    throw new Error(`Upload failed (${res.status}): ${body}`);
+  }
+  const json = await res.json();
+  if (!json.url) throw new Error(`Upload returned no URL: ${JSON.stringify(json)}`);
+  console.log('[Whisper] upload OK →', json.url);
+  return json.url;
 }
 
 async function transcribeChunk(audioUrl: string): Promise<string> {
+  console.log('[Whisper] transcribing', audioUrl);
   const res = await fetch('/api/fal-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -30,9 +37,15 @@ async function transcribeChunk(audioUrl: string): Promise<string> {
       },
     }),
   });
-  if (!res.ok) throw new Error('Transcription failed');
+  if (!res.ok) {
+    const body = await res.text().catch(() => res.statusText);
+    throw new Error(`Transcription failed (${res.status}): ${body}`);
+  }
   const data = await res.json();
-  return (data.text as string) ?? '';
+  if (data.error) throw new Error(`Wizper error: ${data.error}`);
+  const text = (data.text as string) ?? '';
+  console.log('[Whisper] transcript:', text);
+  return text;
 }
 
 function detectFillers(text: string): string[] {
@@ -98,6 +111,7 @@ export function startWhisperPipeline(
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'fal-proxy error';
+        console.error('[Whisper]', msg);
         onError?.(msg);
       }
     };
