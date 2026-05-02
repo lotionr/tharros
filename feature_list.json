@@ -8,7 +8,7 @@
       "Allow camera permission when prompted",
       "Verify live webcam video is visible on the page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "webcam-002",
@@ -19,7 +19,7 @@
       "Open DevTools console",
       "Confirm no errors appear and video plays smoothly"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "webcam-003",
@@ -30,7 +30,7 @@
       "Deny camera permission when prompted",
       "Verify a user-friendly error message appears instead of a crash"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "session-flow-001",
