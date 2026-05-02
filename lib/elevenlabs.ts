@@ -23,6 +23,7 @@ let intentionallyClosed = false;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let activeVoiceId = '';
 let activeApiKey = '';
+let pendingAudioChunks: string[] = [];
 
 export function openElevenLabsSocket(voiceId: string, apiKey: string): void {
   if (ws && ws.readyState === WebSocket.OPEN) return;
@@ -47,21 +48,25 @@ export function openElevenLabsSocket(voiceId: string, apiKey: string): void {
     );
   };
 
-  ws.onmessage = async (event) => {
+  ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data as string);
-      if (msg.audio) {
-        const raw = atob(msg.audio);
+      if (msg.audio) pendingAudioChunks.push(msg.audio);
+      if (msg.isFinal) {
+        if (pendingAudioChunks.length === 0) return;
+        const combined = pendingAudioChunks.join('');
+        pendingAudioChunks = [];
+        const raw = atob(combined);
         const buf = new Uint8Array(raw.length);
         for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
-        const decoded = await audioCtx!.decodeAudioData(buf.buffer);
-        const source = audioCtx!.createBufferSource();
-        source.buffer = decoded;
-        source.connect(audioCtx!.destination);
-        source.start();
+        const blob = new Blob([buf], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => URL.revokeObjectURL(url);
+        audio.play().catch(() => URL.revokeObjectURL(url));
       }
     } catch {
-      // ignore decode errors
+      // ignore malformed messages
     }
   };
 
@@ -98,6 +103,7 @@ export function closeElevenLabsSocket(): void {
 function speakViaElevenLabs(text: string): void {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   try {
+    pendingAudioChunks = [];
     ws.send(JSON.stringify({ text, flush: true }));
   } catch {
     // WebSocket error — stay silent
@@ -150,7 +156,7 @@ export function onSignalFire(key: string, cue: string): void {
 
   s.fireCount++;
 
-  if (s.fireCount >= 3 && now > s.suppressedUntil) {
+  if (s.fireCount >= 2 && now > s.suppressedUntil) {
     speakViaElevenLabs(cue);
     s.suppressedUntil = now + 15000;
     s.fireCount = 0;

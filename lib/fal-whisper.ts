@@ -127,7 +127,7 @@ export function startWhisperPipeline(
         const fillers = detectFillers(text);
 
         onTranscriptUpdate(text, fillers);
-        if (fillers.length >= 2) {
+        if (fillers.length >= 1) {
           onSignalFire('filler_words', `You said "${fillers[0]}" — keep going`);
         }
       } catch (err: unknown) {

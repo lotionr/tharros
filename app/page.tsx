@@ -156,7 +156,7 @@ export default function Home() {
       onSignalFire,
       (text, fillers) => {
         setLatestTranscript(text);
-        if (fillers.length > 0) incrementFillerCount(fillers.length);
+        if (fillers.length > 0) incrementFillerCount(1);
       },
       (msg) => {
         setErrorToast(msg);

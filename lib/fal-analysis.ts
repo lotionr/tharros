@@ -22,11 +22,24 @@ export async function analyzeSession(playbackId: string): Promise<ReportCard> {
   }
 
   const raw = await res.json();
+  console.log('[fal-analysis] raw response:', JSON.stringify(raw).slice(0, 500));
 
   // raw.output is the model's text — strip markdown fences if present
   const text: string = (raw.output ?? raw.choices?.[0]?.message?.content ?? JSON.stringify(raw))
     .replace(/```(?:json)?/g, '')
     .trim();
 
-  return JSON.parse(text) as ReportCard;
+  console.log('[fal-analysis] parsed text:', text.slice(0, 300));
+  try {
+    return JSON.parse(text) as ReportCard;
+  } catch {
+    console.error('[fal-analysis] JSON.parse failed. Raw text:', text.slice(0, 300));
+    return {
+      overall_score: 0,
+      confidence_rating: 'Poor',
+      top_strengths: [],
+      top_improvements: ['Analysis could not be parsed — please try again.'],
+      summary: 'The AI coach could not generate a report for this session.',
+    } as ReportCard;
+  }
 }
