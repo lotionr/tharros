@@ -1,0 +1,36 @@
+=== THARROS PROGRESS LOG ===
+Project: Real-time AI interview coach
+Hackathon: a16z x Overshoot x Fal x Mux, May 1 2026
+Prizes targeted: #1 Realtime/streaming, #2 Multimodal
+
+=== ARCHITECTURE SUMMARY ===
+Live session — two parallel pipelines:
+  VIDEO: Webcam canvas frame every 800ms → Overshoot VLM → visual signals
+  AUDIO: Mic audio 5s chunks → /api/fal-proxy → fal/Wizper → filler words
+Both pipelines → unified debounce engine → ElevenLabs WebSocket TTS (earpiece)
+Recording: separate MediaRecorder → Mux Direct Upload (runs whole session)
+
+Post-session:
+  Mux playback URL → /api/fal-proxy → fal/openrouter (Gemini 2.5 Flash) → report card
+  Report card displayed on /playback alongside Mux player + chapter markers
+
+Key architectural rules for all coding agents:
+  1. FAL_KEY is server-side only. ALL fal calls go through /api/fal-proxy.
+  2. Two MediaRecorders run independently:
+       - Primary (video+audio) → Mux upload
+       - Secondary (audio-only) → 5s chunks → fal/Wizper
+  3. Debounce engine is the single source of truth for ElevenLabs triggers.
+
+--- SESSION 1: INITIALIZER (complete) ---
+Status: Environment setup done
+Actions taken:
+  - Scaffolded Next.js 14 + TypeScript + Tailwind
+  - Installed @fal-ai/client, @mux/mux-player-react, @mux/mux-uploader-react, zustand
+  - Created all stub files under app/, lib/, components/
+  - Created feature_list.json with 38 features (all passes: false)
+  - Created init.sh
+  - Created .env.local with placeholder values
+Next agent should:
+  - FIRST: fill in .env.local with real API keys (required before any feature works)
+  - THEN: start with category "webcam" — get the camera showing before anything else
+  - Build order: webcam → session-flow → overshoot → fal-whisper → elevenlabs → mux-recording → fal-analysis → playback-ui → coach-overlay → resilience

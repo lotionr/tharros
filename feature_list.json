@@ -1,0 +1,431 @@
+[
+  {
+    "id": "webcam-001",
+    "category": "webcam",
+    "description": "Webcam stream displays in browser via getUserMedia",
+    "steps": [
+      "Open http://localhost:3000",
+      "Allow camera permission when prompted",
+      "Verify live webcam video is visible on the page"
+    ],
+    "passes": false
+  },
+  {
+    "id": "webcam-002",
+    "category": "webcam",
+    "description": "Video element shows live feed without errors",
+    "steps": [
+      "Open http://localhost:3000",
+      "Open DevTools console",
+      "Confirm no errors appear and video plays smoothly"
+    ],
+    "passes": false
+  },
+  {
+    "id": "webcam-003",
+    "category": "webcam",
+    "description": "Camera permission denial handled gracefully with error message",
+    "steps": [
+      "Open http://localhost:3000",
+      "Deny camera permission when prompted",
+      "Verify a user-friendly error message appears instead of a crash"
+    ],
+    "passes": false
+  },
+  {
+    "id": "session-flow-001",
+    "category": "session-flow",
+    "description": "Start Session button activates coaching mode (starts both pipelines and recording)",
+    "steps": [
+      "Open http://localhost:3000",
+      "Click 'Start Session'",
+      "Verify session timer starts and both video and audio pipelines begin"
+    ],
+    "passes": false
+  },
+  {
+    "id": "session-flow-002",
+    "category": "session-flow",
+    "description": "Stop Session button stops all pipelines and triggers upload completion",
+    "steps": [
+      "Start a session",
+      "Click 'Stop Session'",
+      "Verify timer stops, pipelines stop, and Mux upload finalizes"
+    ],
+    "passes": false
+  },
+  {
+    "id": "session-flow-003",
+    "category": "session-flow",
+    "description": "Session timer counts up from 0:00 during active session",
+    "steps": [
+      "Start a session",
+      "Observe the timer counting up from 0:00",
+      "Stop session and verify timer stops"
+    ],
+    "passes": false
+  },
+  {
+    "id": "session-flow-004",
+    "category": "session-flow",
+    "description": "After stop: app shows Processing... and polls /api/mux-asset until ready, then redirects",
+    "steps": [
+      "Stop a session",
+      "Verify 'Processing...' message appears",
+      "Verify app polls /api/mux-asset and redirects to /playback?playbackId=xxx when ready"
+    ],
+    "passes": false
+  },
+  {
+    "id": "overshoot-001",
+    "category": "overshoot",
+    "description": "Canvas frame extracted from video element every 800ms during session",
+    "steps": [
+      "Start a session",
+      "Open DevTools Network tab",
+      "Verify requests to Overshoot API happen approximately every 800ms"
+    ],
+    "passes": false
+  },
+  {
+    "id": "overshoot-002",
+    "category": "overshoot",
+    "description": "Frame sent to Overshoot as base64 JPEG with correct VLM prompt",
+    "steps": [
+      "Start a session",
+      "Inspect a request to Overshoot",
+      "Verify request body contains base64 JPEG and the correct system/user prompt"
+    ],
+    "passes": false
+  },
+  {
+    "id": "overshoot-003",
+    "category": "overshoot",
+    "description": "Overshoot response parsed into VisualSignals type without crashing on malformed JSON",
+    "steps": [
+      "Mock an Overshoot response with malformed JSON",
+      "Verify the app does not crash",
+      "Verify error is caught and logged gracefully"
+    ],
+    "passes": false
+  },
+  {
+    "id": "overshoot-004",
+    "category": "overshoot",
+    "description": "Signal overlay badges update with latest scores in real time",
+    "steps": [
+      "Start a session",
+      "Observe the overlay badges (eye_contact, posture, expression, pacing)",
+      "Verify scores update approximately every 800ms"
+    ],
+    "passes": false
+  },
+  {
+    "id": "overshoot-005",
+    "category": "overshoot",
+    "description": "Overshoot fire:true signals route to debounce engine",
+    "steps": [
+      "Start a session",
+      "Trigger a low score (e.g., look away from camera)",
+      "Verify the debounce engine receives the fire signal"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-whisper-001",
+    "category": "fal-whisper",
+    "description": "Separate audio-only MediaRecorder captures mic in 5-second chunks",
+    "steps": [
+      "Start a session",
+      "Open DevTools console",
+      "Verify audio chunks are produced every 5 seconds"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-whisper-002",
+    "category": "fal-whisper",
+    "description": "Audio chunk uploaded to fal storage via /api/fal-proxy",
+    "steps": [
+      "Start a session",
+      "Speak for 5 seconds",
+      "Verify /api/fal-proxy receives the audio chunk upload request"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-whisper-003",
+    "category": "fal-whisper",
+    "description": "Wizper transcription returned with word-level chunks",
+    "steps": [
+      "Start a session",
+      "Speak clearly for 5 seconds",
+      "Verify Wizper returns a transcript with word-level data"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-whisper-004",
+    "category": "fal-whisper",
+    "description": "Transcript scanned for filler words correctly",
+    "steps": [
+      "Start a session",
+      "Say 'um uh like you know' clearly",
+      "Verify filler words are detected in the transcript scan"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-whisper-005",
+    "category": "fal-whisper",
+    "description": "Filler signal (>= 2 fillers) routes to debounce engine",
+    "steps": [
+      "Start a session",
+      "Say at least 2 filler words in a 5-second chunk",
+      "Verify the debounce engine receives the filler_words signal"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-whisper-006",
+    "category": "fal-whisper",
+    "description": "Live transcript strip shows last ~10 words, fillers highlighted in amber",
+    "steps": [
+      "Start a session",
+      "Speak several sentences including filler words",
+      "Verify transcript strip updates and filler words appear in amber"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-analysis-001",
+    "category": "fal-analysis",
+    "description": "/api/fal-proxy accepts POST with endpoint + input and returns fal result",
+    "steps": [
+      "Send a POST to /api/fal-proxy with { endpoint, input }",
+      "Verify it calls fal.subscribe and returns result.data",
+      "Verify FAL_KEY is not exposed to the client"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-analysis-002",
+    "category": "fal-analysis",
+    "description": "After session, Mux HLS URL sent to Gemini 2.5 Flash via fal-proxy",
+    "steps": [
+      "Stop a session and wait for Mux playbackId",
+      "Verify /api/fal-proxy is called with openrouter/router/video endpoint",
+      "Verify the Mux HLS URL is included in the request"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-analysis-003",
+    "category": "fal-analysis",
+    "description": "Report card JSON parsed and stored in Zustand",
+    "steps": [
+      "Complete a session and wait for analysis",
+      "Open DevTools and inspect Zustand store",
+      "Verify reportCard is populated with overall_score, confidence_rating, top_strengths, top_improvements, summary"
+    ],
+    "passes": false
+  },
+  {
+    "id": "fal-analysis-004",
+    "category": "fal-analysis",
+    "description": "Report card rendered on /playback page with score, rating, strengths, improvements",
+    "steps": [
+      "Complete a session",
+      "Navigate to /playback",
+      "Verify overall_score, confidence_rating, top_strengths, top_improvements, and summary are all visible"
+    ],
+    "passes": false
+  },
+  {
+    "id": "elevenlabs-001",
+    "category": "elevenlabs",
+    "description": "ElevenLabs WebSocket opens on session start",
+    "steps": [
+      "Click 'Start Session'",
+      "Open DevTools Network > WS tab",
+      "Verify a WebSocket connection to ElevenLabs is established"
+    ],
+    "passes": false
+  },
+  {
+    "id": "elevenlabs-002",
+    "category": "elevenlabs",
+    "description": "Debounce engine triggers ElevenLabs speak() on threshold (3 fires in 5s)",
+    "steps": [
+      "Start a session",
+      "Trigger the same signal 3 times within 5 seconds",
+      "Verify ElevenLabs speak() is called and audio is sent"
+    ],
+    "passes": false
+  },
+  {
+    "id": "elevenlabs-003",
+    "category": "elevenlabs",
+    "description": "Same signal suppressed for 15s after speaking",
+    "steps": [
+      "Trigger ElevenLabs to speak for a signal",
+      "Trigger the same signal again immediately",
+      "Verify no second cue fires within the 15-second suppression window"
+    ],
+    "passes": false
+  },
+  {
+    "id": "elevenlabs-004",
+    "category": "elevenlabs",
+    "description": "Audio plays through speakers/earpiece correctly",
+    "steps": [
+      "Start a session with earpiece/speakers connected",
+      "Trigger an ElevenLabs cue",
+      "Verify the voice coaching cue plays audibly"
+    ],
+    "passes": false
+  },
+  {
+    "id": "mux-recording-001",
+    "category": "mux-recording",
+    "description": "/api/mux-upload creates Direct Upload URL",
+    "steps": [
+      "POST to /api/mux-upload",
+      "Verify response contains { uploadUrl, uploadId }",
+      "Verify MUX_TOKEN_ID and MUX_TOKEN_SECRET are used server-side only"
+    ],
+    "passes": false
+  },
+  {
+    "id": "mux-recording-002",
+    "category": "mux-recording",
+    "description": "Primary MediaRecorder (video+audio) streams to Mux upload URL",
+    "steps": [
+      "Start a session",
+      "Open DevTools Network tab",
+      "Verify video+audio data is being sent to the Mux upload URL"
+    ],
+    "passes": false
+  },
+  {
+    "id": "mux-recording-003",
+    "category": "mux-recording",
+    "description": "Mux upload completes when session stops",
+    "steps": [
+      "Stop a session",
+      "Verify the Mux upload request finishes successfully",
+      "Verify no data is lost on stop"
+    ],
+    "passes": false
+  },
+  {
+    "id": "mux-recording-004",
+    "category": "mux-recording",
+    "description": "/api/mux-asset polls and returns playbackId when asset is ready",
+    "steps": [
+      "Stop a session",
+      "Verify GET /api/mux-asset?uploadId=xxx is called repeatedly",
+      "Verify it returns { assetId, playbackId, status } when ready"
+    ],
+    "passes": false
+  },
+  {
+    "id": "mux-recording-005",
+    "category": "mux-recording",
+    "description": "Each ElevenLabs trigger recorded as chapter cue with elapsed timestamp",
+    "steps": [
+      "Trigger several ElevenLabs cues during a session",
+      "Stop the session and navigate to /playback",
+      "Verify chapter cues appear with correct elapsed timestamps"
+    ],
+    "passes": false
+  },
+  {
+    "id": "playback-ui-001",
+    "category": "playback-ui",
+    "description": "Mux player renders on /playback with correct playbackId",
+    "steps": [
+      "Complete a session and navigate to /playback",
+      "Verify @mux/mux-player-react renders with the correct playbackId",
+      "Verify video loads and is playable"
+    ],
+    "passes": false
+  },
+  {
+    "id": "playback-ui-002",
+    "category": "playback-ui",
+    "description": "Chapter cue annotations shown as dots above the player timeline",
+    "steps": [
+      "Complete a session with at least one ElevenLabs cue",
+      "Navigate to /playback",
+      "Verify colored dots appear above the timeline at chapter cue positions; hover to see cue text"
+    ],
+    "passes": false
+  },
+  {
+    "id": "playback-ui-003",
+    "category": "playback-ui",
+    "description": "Coaching report card (fal/Gemini) shown alongside the player",
+    "steps": [
+      "Complete a session",
+      "Navigate to /playback",
+      "Verify the report card section shows overall score, confidence rating, strengths, improvements, and summary"
+    ],
+    "passes": false
+  },
+  {
+    "id": "playback-ui-004",
+    "category": "playback-ui",
+    "description": "Start New Session button navigates back to /",
+    "steps": [
+      "Navigate to /playback",
+      "Click 'Start New Session'",
+      "Verify browser navigates back to /"
+    ],
+    "passes": false
+  },
+  {
+    "id": "coach-overlay-001",
+    "category": "coach-overlay",
+    "description": "Live signal overlay badges visible during session for all five signals",
+    "steps": [
+      "Start a session",
+      "Verify badges for eye_contact, posture, expression, pacing, and filler_words are visible",
+      "Verify each badge shows a score"
+    ],
+    "passes": false
+  },
+  {
+    "id": "resilience-001",
+    "category": "resilience",
+    "description": "Overshoot malformed JSON does not crash the app",
+    "steps": [
+      "Mock Overshoot to return malformed JSON",
+      "Verify the app catches the error and continues running",
+      "Verify no unhandled exception appears in the console"
+    ],
+    "passes": false
+  },
+  {
+    "id": "resilience-002",
+    "category": "resilience",
+    "description": "ElevenLabs WebSocket disconnect handled gracefully (reconnect or silence)",
+    "steps": [
+      "Start a session",
+      "Simulate WebSocket disconnect",
+      "Verify app does not crash and either reconnects or silently skips TTS"
+    ],
+    "passes": false
+  },
+  {
+    "id": "resilience-003",
+    "category": "resilience",
+    "description": "fal-proxy errors returned as 500 with message, client shows error toast",
+    "steps": [
+      "Trigger a fal-proxy error (e.g., invalid endpoint)",
+      "Verify /api/fal-proxy returns HTTP 500 with an error message",
+      "Verify the client displays an error toast"
+    ],
+    "passes": false
+  }
+]
