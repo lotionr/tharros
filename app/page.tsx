@@ -36,6 +36,10 @@ export default function Home() {
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [overshootError, setOvershootError] = useState<string | null>(null);
 
+  // Rolling average of last 4 Overshoot scores per signal key
+  const scoreHistoryRef = useRef<Record<string, number[]>>({});
+  const [smoothedScores, setSmoothedScores] = useState<Record<string, number>>({});
+
   const {
     isSessionActive,
     setSessionActive,
@@ -125,10 +129,24 @@ export default function Home() {
 
     // Start Overshoot stream
     setOvershootError(null);
+    scoreHistoryRef.current = {};
     overshootStopRef.current = startOvershootLoop(
       streamRef.current,
       onSignalFire,
-      setCurrentSignals,
+      (signals) => {
+        setCurrentSignals(signals);
+        const keys = ['eye_contact', 'posture', 'expression', 'pacing'] as const;
+        const history = scoreHistoryRef.current;
+        const next: Record<string, number> = {};
+        for (const key of keys) {
+          const score = signals[key]?.score ?? 5;
+          if (!history[key]) history[key] = [];
+          history[key].push(score);
+          if (history[key].length > 4) history[key].shift();
+          next[key] = Math.round(history[key].reduce((a, b) => a + b, 0) / history[key].length);
+        }
+        setSmoothedScores(next);
+      },
       (msg) => setOvershootError(msg)
     );
 
@@ -223,10 +241,10 @@ export default function Home() {
             {isSessionActive && currentSignals && (
               <div className="absolute top-3 left-3 flex flex-col gap-1">
                 {(['eye_contact', 'posture', 'expression', 'pacing'] as const).map((key) => {
-                  const sig = currentSignals[key];
-                  const color = sig.score >= 6
+                  const score = smoothedScores[key] ?? currentSignals[key]?.score ?? 5;
+                  const color = score >= 6
                     ? 'bg-black/60 text-green-400'
-                    : sig.score >= 3
+                    : score >= 3
                     ? 'bg-yellow-500/70 text-white'
                     : 'bg-red-500/80 text-white';
                   return (
@@ -235,7 +253,7 @@ export default function Home() {
                       className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono backdrop-blur-sm ${color}`}
                     >
                       <span className="capitalize">{key.replace('_', ' ')}</span>
-                      <span className="font-bold">{sig.score}/10</span>
+                      <span className="font-bold">{score}/10</span>
                     </div>
                   );
                 })}
