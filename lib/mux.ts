@@ -13,12 +13,16 @@ export async function startMuxRecording(stream: MediaStream): Promise<MuxSession
 
   try {
     const res = await fetch('/api/mux-upload', { method: 'POST' });
-    if (!res.ok) throw new Error('mux-upload failed');
+    if (!res.ok) {
+      const body = await res.text().catch(() => res.statusText);
+      throw new Error(`mux-upload ${res.status}: ${body}`);
+    }
     const data = await res.json();
     uploadUrl = data.uploadUrl;
     uploadId = data.uploadId;
-  } catch {
-    return null;
+  } catch (err) {
+    console.error('[Mux] failed to create upload:', err);
+    throw err; // re-throw so startSession can show an error
   }
 
   // Choose best supported mimeType

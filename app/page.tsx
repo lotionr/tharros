@@ -106,7 +106,14 @@ export default function Home() {
     const now = Date.now();
 
     // Start Mux recording (primary video+audio recorder)
-    muxSessionRef.current = await startMuxRecording(streamRef.current);
+    try {
+      muxSessionRef.current = await startMuxRecording(streamRef.current);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Mux recording failed';
+      setErrorToast(`Recording error: ${msg}`);
+      setTimeout(() => setErrorToast(null), 6000);
+      // Continue session without recording — coaching still works
+    }
 
     setSessionActive(true, now);
 
