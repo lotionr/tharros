@@ -224,12 +224,15 @@ export default function Home() {
               <div className="absolute top-3 left-3 flex flex-col gap-1">
                 {(['eye_contact', 'posture', 'expression', 'pacing'] as const).map((key) => {
                   const sig = currentSignals[key];
+                  const color = sig.score >= 7
+                    ? 'bg-black/60 text-green-400'
+                    : sig.score >= 4
+                    ? 'bg-yellow-500/70 text-white'
+                    : 'bg-red-500/80 text-white';
                   return (
                     <div
                       key={key}
-                      className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono backdrop-blur-sm ${
-                        sig.fire ? 'bg-red-500/80 text-white' : 'bg-black/60 text-green-400'
-                      }`}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-mono backdrop-blur-sm ${color}`}
                     >
                       <span className="capitalize">{key.replace('_', ' ')}</span>
                       <span className="font-bold">{sig.score}/10</span>
