@@ -46,3 +46,26 @@ Feature completed: session-flow-001..004 — Start/Stop, timer, Processing overl
 Tested: Start Session enables timer (M:SS counting up), Stop Session shows "Processing…", API routes for mux-upload (POST) and mux-asset (GET) implemented with Basic Auth
 Issues: none
 Next: overshoot — canvas frame grab every 800ms → Overshoot VLM → visual signals
+
+--- SESSION 4: OVERSHOOT + ELEVENLABS CORE (complete) ---
+Feature completed: overshoot-001..005, elevenlabs-001..003
+Implemented: startOvershootLoop (canvas 800ms, base64 JPEG, Overshoot VLM), debounce engine, ElevenLabs WS TTS
+
+--- SESSION 5: FAL-WHISPER + FAL-PROXY + FAL-ANALYSIS (complete) ---
+Feature completed: fal-whisper-001..006, fal-analysis-001..003, elevenlabs-004
+Implemented: startWhisperPipeline (5s chunks, upload, Wizper STT, filler detection), /api/fal-proxy (JSON + FormData), analyzeSession (Gemini 2.5 Flash)
+
+--- SESSION 6: MUX RECORDING (complete) ---
+Feature completed: mux-recording-001..005
+Implemented: startMuxRecording (video+audio MediaRecorder → PUT to Mux), stop() finalizes before polling
+
+--- SESSION 7: PLAYBACK UI + COACH OVERLAY (complete) ---
+Feature completed: playback-ui-001..004, fal-analysis-004, coach-overlay-001
+Implemented: /playback with MuxPlayer, chapter dot annotations, coaching report card, CoachOverlay + SessionControls components
+
+--- SESSION 8: RESILIENCE (complete) ---
+Feature completed: resilience-001..003
+Implemented: overshoot JSON try/catch (already done), ElevenLabs auto-reconnect, error toast
+
+=== ALL 38 FEATURES PASSING ===
+App is fully implemented and ready for demo.
