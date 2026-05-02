@@ -12,6 +12,7 @@ function PlaybackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const playbackId = searchParams.get('playbackId') ?? '';
+  const mp4Url = searchParams.get('mp4Url') ?? undefined;
 
   const { chapterCues, reportCard, setReportCard, cueLog } = useCoachingStore();
 
@@ -25,7 +26,7 @@ function PlaybackContent() {
     if (!playbackId || analysisStarted.current || localReport) return;
     analysisStarted.current = true;
     setAnalyzing(true);
-    analyzeSession(playbackId)
+    analyzeSession(playbackId, mp4Url)
       .then((report) => {
         setLocalReport(report);
         setReportCard(report);

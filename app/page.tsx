@@ -89,9 +89,11 @@ export default function Home() {
         try {
           const res = await fetch(`/api/mux-asset?uploadId=${uploadId}`);
           const data = await res.json();
-          if (data.status === 'ready' && data.playbackId) {
+          if (data.status === 'ready' && data.playbackId && data.mp4Url) {
             clearInterval(pollRef.current!);
-            router.push(`/playback?playbackId=${data.playbackId}`);
+            router.push(`/playback?playbackId=${data.playbackId}&mp4Url=${encodeURIComponent(data.mp4Url)}`);
+          } else if (data.status === 'ready' && data.playbackId) {
+            // mp4 not ready yet — keep polling (mp4_support takes ~30s after HLS)
           }
         } catch {
           // keep polling

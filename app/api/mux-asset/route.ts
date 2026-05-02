@@ -45,10 +45,15 @@ export async function GET(req: NextRequest) {
   const assetData = await assetRes.json();
   const asset = assetData.data;
   const playbackId: string | undefined = asset.playback_ids?.[0]?.id;
+  const mp4Ready = asset.static_renditions?.status === 'ready';
+  const mp4Url = mp4Ready && playbackId
+    ? `https://stream.mux.com/${playbackId}/high.mp4`
+    : null;
 
   return NextResponse.json({
     status: asset.status,
     assetId,
     playbackId: playbackId ?? null,
+    mp4Url,
   });
 }

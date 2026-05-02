@@ -1,13 +1,14 @@
 import type { ReportCard } from './coaching-store';
 
-export async function analyzeSession(playbackId: string): Promise<ReportCard> {
+export async function analyzeSession(playbackId: string, mp4Url?: string): Promise<ReportCard> {
+  const videoUrl = mp4Url ?? `https://stream.mux.com/${playbackId}/high.mp4`;
   const res = await fetch('/api/fal-proxy', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       endpoint: 'openrouter/router/video',
       input: {
-        video_url: `https://stream.mux.com/${playbackId}.m3u8`,
+        video_url: videoUrl,
         model: 'google/gemini-2.5-flash',
         system_prompt:
           'You are a professional interview coach. Be specific and constructive. Return only valid JSON, no other text.',

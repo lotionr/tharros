@@ -18,7 +18,7 @@ export async function POST() {
     },
     body: JSON.stringify({
       cors_origin: '*',
-      new_asset_settings: { playback_policy: ['public'] },
+      new_asset_settings: { playback_policy: ['public'], mp4_support: 'standard' },
     }),
   });
 

@@ -111,32 +111,40 @@ export function startWhisperPipeline(
     });
   }
 
+  async function processBlob(blob: Blob) {
+    try {
+      const audioUrl = await uploadAudioBlob(blob);
+      if (stopped) return;
+      const text = await transcribeChunk(audioUrl);
+      const fillers = detectFillers(text);
+      onTranscriptUpdate(text, fillers);
+      if (fillers.length >= 1) {
+        onSignalFire('filler_words', `You said "${fillers[0]}" — keep going`);
+      }
+    } catch (err: unknown) {
+      if (stopped) return;
+      const msg = err instanceof Error ? err.message : 'fal-proxy error';
+      console.error('[Whisper]', msg);
+      onError?.(msg);
+    }
+  }
+
   async function loop() {
     while (!stopped) {
       try {
         const blob = await recordChunk();
         if (stopped) break;
-
         if (blob.size < MIN_BLOB_SIZE) {
           console.log('[Whisper] chunk too small, skipping', blob.size, 'bytes');
           continue;
         }
-
-        const audioUrl = await uploadAudioBlob(blob);
-        const text = await transcribeChunk(audioUrl);
-        const fillers = detectFillers(text);
-
-        onTranscriptUpdate(text, fillers);
-        if (fillers.length >= 1) {
-          onSignalFire('filler_words', `You said "${fillers[0]}" — keep going`);
-        }
+        // Process concurrently — start recording next chunk immediately
+        processBlob(blob);
       } catch (err: unknown) {
         if (stopped) break;
         const msg = err instanceof Error ? err.message : 'fal-proxy error';
-        console.error('[Whisper]', msg);
+        console.error('[Whisper] record error:', msg);
         onError?.(msg);
-        // Brief pause before retrying so we don't hammer on persistent errors
-        await new Promise((r) => setTimeout(r, 2000));
       }
     }
   }
