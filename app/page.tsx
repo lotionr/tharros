@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCoachingStore } from '@/lib/coaching-store';
+import { startOvershootLoop } from '@/lib/overshoot';
+import {
+  openElevenLabsSocket,
+  closeElevenLabsSocket,
+  initDebounceEngine,
+  onSignalFire,
+} from '@/lib/elevenlabs';
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -16,6 +23,7 @@ export default function Home() {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const overshootStopRef = useRef<(() => void) | null>(null);
   const uploadIdRef = useRef<string | null>(null);
 
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -23,7 +31,13 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0);
   const [processing, setProcessing] = useState(false);
 
-  const { isSessionActive, setSessionActive, resetSession } = useCoachingStore();
+  const {
+    isSessionActive,
+    setSessionActive,
+    resetSession,
+    setCurrentSignals,
+    addChapterCue,
+  } = useCoachingStore();
 
   // Camera init on mount
   useEffect(() => {
@@ -47,32 +61,36 @@ export default function Home() {
       }
     }
     startCamera();
-
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
   // Poll Mux until asset is ready, then redirect
-  const pollMuxAsset = useCallback((uploadId: string) => {
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/mux-asset?uploadId=${uploadId}`);
-        const data = await res.json();
-        if (data.status === 'ready' && data.playbackId) {
-          clearInterval(pollRef.current!);
-          router.push(`/playback?playbackId=${data.playbackId}`);
+  const pollMuxAsset = useCallback(
+    (uploadId: string) => {
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/mux-asset?uploadId=${uploadId}`);
+          const data = await res.json();
+          if (data.status === 'ready' && data.playbackId) {
+            clearInterval(pollRef.current!);
+            router.push(`/playback?playbackId=${data.playbackId}`);
+          }
+        } catch {
+          // keep polling
         }
-      } catch {
-        // keep polling
-      }
-    }, 3000);
-  }, [router]);
+      }, 3000);
+    },
+    [router]
+  );
 
   const startSession = useCallback(async () => {
     resetSession();
     setElapsed(0);
     setProcessing(false);
+
+    const now = Date.now();
 
     // Get Mux upload URL
     try {
@@ -83,15 +101,37 @@ export default function Home() {
       uploadIdRef.current = null;
     }
 
-    setSessionActive(true, Date.now());
+    setSessionActive(true, now);
+
+    // Init debounce engine + ElevenLabs
+    initDebounceEngine(now, addChapterCue);
+    const voiceId = process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ?? '';
+    const elKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY ?? '';
+    if (voiceId && elKey) openElevenLabsSocket(voiceId, elKey);
+
+    // Start Overshoot frame loop
+    if (videoRef.current) {
+      overshootStopRef.current = startOvershootLoop(
+        videoRef.current,
+        onSignalFire,
+        setCurrentSignals
+      );
+    }
 
     // Start elapsed timer
     timerRef.current = setInterval(() => {
       setElapsed((s) => s + 1);
     }, 1000);
-  }, [resetSession, setSessionActive]);
+  }, [resetSession, setSessionActive, setCurrentSignals, addChapterCue]);
 
   const stopSession = useCallback(() => {
+    // Stop Overshoot loop
+    overshootStopRef.current?.();
+    overshootStopRef.current = null;
+
+    // Stop ElevenLabs
+    closeElevenLabsSocket();
+
     // Stop timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -105,7 +145,6 @@ export default function Home() {
     if (uploadIdRef.current) {
       pollMuxAsset(uploadIdRef.current);
     } else {
-      // No Mux upload (e.g. keys not set) — go to playback anyway with no ID
       setProcessing(false);
     }
   }, [setSessionActive, pollMuxAsset]);
@@ -113,6 +152,8 @@ export default function Home() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      overshootStopRef.current?.();
+      closeElevenLabsSocket();
       if (timerRef.current) clearInterval(timerRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -176,7 +217,6 @@ export default function Home() {
             {isSessionActive ? 'Stop Session' : 'Start Session'}
           </button>
         )}
-
         {isSessionActive && (
           <p className="text-gray-500 text-xs">Session active — {formatTime(elapsed)}</p>
         )}

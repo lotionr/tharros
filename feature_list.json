@@ -85,7 +85,7 @@
       "Open DevTools Network tab",
       "Verify requests to Overshoot API happen approximately every 800ms"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "overshoot-002",
@@ -96,7 +96,7 @@
       "Inspect a request to Overshoot",
       "Verify request body contains base64 JPEG and the correct system/user prompt"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "overshoot-003",
@@ -107,7 +107,7 @@
       "Verify the app does not crash",
       "Verify error is caught and logged gracefully"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "overshoot-004",
@@ -118,7 +118,7 @@
       "Observe the overlay badges (eye_contact, posture, expression, pacing)",
       "Verify scores update approximately every 800ms"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "overshoot-005",
@@ -129,7 +129,7 @@
       "Trigger a low score (e.g., look away from camera)",
       "Verify the debounce engine receives the fire signal"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "fal-whisper-001",
@@ -250,7 +250,7 @@
       "Open DevTools Network > WS tab",
       "Verify a WebSocket connection to ElevenLabs is established"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "elevenlabs-002",
@@ -261,7 +261,7 @@
       "Trigger the same signal 3 times within 5 seconds",
       "Verify ElevenLabs speak() is called and audio is sent"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "elevenlabs-003",
@@ -272,7 +272,7 @@
       "Trigger the same signal again immediately",
       "Verify no second cue fires within the 15-second suppression window"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "elevenlabs-004",
