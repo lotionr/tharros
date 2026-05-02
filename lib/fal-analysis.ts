@@ -7,7 +7,7 @@ export async function analyzeSession(playbackId: string): Promise<ReportCard> {
     body: JSON.stringify({
       endpoint: 'openrouter/router/video',
       input: {
-        video_urls: [`https://stream.mux.com/${playbackId}.m3u8`],
+        video_url: `https://stream.mux.com/${playbackId}.m3u8`,
         model: 'google/gemini-2.5-flash',
         system_prompt:
           'You are a professional interview coach. Be specific and constructive. Return only valid JSON, no other text.',
