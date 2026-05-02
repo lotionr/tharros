@@ -34,3 +34,9 @@ Next agent should:
   - FIRST: fill in .env.local with real API keys (required before any feature works)
   - THEN: start with category "webcam" — get the camera showing before anything else
   - Build order: webcam → session-flow → overshoot → fal-whisper → elevenlabs → mux-recording → fal-analysis → playback-ui → coach-overlay → resilience
+
+--- SESSION 2: WEBCAM (complete) ---
+Feature completed: webcam-001, webcam-002, webcam-003 — Webcam stream via getUserMedia
+Tested: page loads at localhost:3000, video element renders live feed, permission denial shows error message
+Issues: node_modules/.bin/next was flattened (not a symlink) after cp -r during scaffold; fixed by rm -rf node_modules && npm install
+Next: session-flow — Start/Stop button, timer, processing redirect
