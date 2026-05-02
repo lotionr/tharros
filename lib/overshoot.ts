@@ -1,95 +1,155 @@
+import { StreamClient } from '@overshoot/sdk';
 import type { VisualSignals } from './coaching-store';
-
-const SYSTEM_PROMPT =
-  'You are an expert interview coach analyzing a video frame. Return ONLY valid JSON, no other text.';
-
-const USER_PROMPT = `Analyze this interview candidate's body language and return exactly this JSON:
-{
-  "eye_contact": { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 5> },
-  "posture":     { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 5> },
-  "expression":  { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 6> },
-  "pacing":      { "score": <0-10>, "cue": "<coaching cue ≤8 words, or empty>", "fire": <true if score < 4 or score > 9> }
-}`;
 
 export type SignalFireCallback = (key: string, cue: string) => void;
 export type SignalsUpdateCallback = (signals: VisualSignals) => void;
 export type OvershootErrorCallback = (msg: string) => void;
 
+const API_URL = 'https://cluster1.overshoot.ai/api/v0.2';
+
+const PROMPT = `You are an expert interview coach. Analyze the candidate's body language.
+Return ONLY valid JSON exactly matching this schema — no other text.`;
+
+const OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    eye_contact: {
+      type: 'object',
+      properties: {
+        score: { type: 'number', description: '0-10' },
+        cue:   { type: 'string', description: 'coaching cue ≤8 words, or empty string' },
+        fire:  { type: 'boolean', description: 'true if score < 5' },
+      },
+      required: ['score', 'cue', 'fire'],
+    },
+    posture: {
+      type: 'object',
+      properties: {
+        score: { type: 'number' },
+        cue:   { type: 'string' },
+        fire:  { type: 'boolean', description: 'true if score < 5' },
+      },
+      required: ['score', 'cue', 'fire'],
+    },
+    expression: {
+      type: 'object',
+      properties: {
+        score: { type: 'number' },
+        cue:   { type: 'string' },
+        fire:  { type: 'boolean', description: 'true if score < 6' },
+      },
+      required: ['score', 'cue', 'fire'],
+    },
+    pacing: {
+      type: 'object',
+      properties: {
+        score: { type: 'number' },
+        cue:   { type: 'string' },
+        fire:  { type: 'boolean', description: 'true if score < 4 or score > 9' },
+      },
+      required: ['score', 'cue', 'fire'],
+    },
+  },
+  required: ['eye_contact', 'posture', 'expression', 'pacing'],
+};
+
+const SIGNAL_KEYS = ['eye_contact', 'posture', 'expression', 'pacing'] as const;
+
 export function startOvershootLoop(
-  videoEl: HTMLVideoElement,
+  stream: MediaStream,
   onSignalFire: SignalFireCallback,
   onSignalsUpdate: SignalsUpdateCallback,
   onError?: OvershootErrorCallback
 ): () => void {
-  const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 480;
-  const ctx = canvas.getContext('2d')!;
   const apiKey = process.env.NEXT_PUBLIC_OVERSHOOT_API_KEY ?? '';
+  if (!apiKey) { onError?.('NEXT_PUBLIC_OVERSHOOT_API_KEY not set'); return () => {}; }
 
-  let consecutiveErrors = 0;
+  const client = new StreamClient({ baseUrl: API_URL, apiKey });
+  let pc: RTCPeerConnection | null = null;
+  let ws: WebSocket | null = null;
+  let keepaliveId: ReturnType<typeof setInterval> | null = null;
+  let stopped = false;
 
-  const intervalId = setInterval(async () => {
-    if (videoEl.readyState < 2) return;
+  async function init() {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) throw new Error('No video track in stream');
 
-    try {
-      ctx.drawImage(videoEl, 0, 0, 640, 480);
-      const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+    pc = new RTCPeerConnection();
+    pc.addTrack(videoTrack, stream);
 
-      const res = await fetch('https://api.overshoot.tv/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'overshoot-vision',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: USER_PROMPT },
-                { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}` } },
-              ],
-            },
-          ],
-        }),
-      });
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => res.statusText);
-        throw new Error(`Overshoot ${res.status}: ${errText}`);
-      }
+    // Wait for ICE gathering to complete
+    await new Promise<void>((resolve) => {
+      if (pc!.iceGatheringState === 'complete') { resolve(); return; }
+      pc!.onicecandidate = (e) => { if (e.candidate === null) resolve(); };
+      setTimeout(resolve, 3000); // fallback
+    });
 
-      const raw = await res.json();
-      const text: string =
-        raw?.choices?.[0]?.message?.content ?? raw?.content ?? JSON.stringify(raw);
+    if (stopped) return;
 
-      // Strip markdown fences if present
-      const jsonText = text.replace(/```(?:json)?/g, '').trim();
-      const signals: VisualSignals = JSON.parse(jsonText);
+    const response = await client.createStream({
+      webrtc: { type: 'offer', sdp: pc.localDescription!.sdp },
+      processing: {
+        sampling_ratio: 0.5,
+        fps: 30,
+        clip_length_seconds: 1.0,
+        delay_seconds: 1.0,
+      },
+      inference: {
+        prompt: PROMPT,
+        backend: 'overshoot',
+        model: 'Qwen/Qwen3-VL-30B-A3B-Instruct',
+        output_schema_json: OUTPUT_SCHEMA,
+      },
+    });
 
-      consecutiveErrors = 0;
-      onSignalsUpdate(signals);
+    await pc.setRemoteDescription(response.webrtc);
 
-      const keys = ['eye_contact', 'posture', 'expression', 'pacing'] as const;
-      for (const key of keys) {
-        const sig = signals[key];
-        if (sig?.fire && sig?.cue) {
-          onSignalFire(key, sig.cue);
+    if (stopped) return;
+
+    // Keepalive every 60s (lease is 300s)
+    keepaliveId = setInterval(() => {
+      client.renewLease(response.stream_id).catch(() => {});
+    }, 60_000);
+
+    // WebSocket for inference results
+    ws = client.connectWebSocket(response.stream_id);
+    ws.onopen = () => {
+      ws!.send(JSON.stringify({ api_key: apiKey }));
+    };
+    ws.onmessage = (event) => {
+      if (stopped) return;
+      try {
+        const msg = JSON.parse(event.data as string);
+        if (!msg.ok || !msg.result) return;
+        const signals: VisualSignals = JSON.parse(msg.result);
+        onSignalsUpdate(signals);
+        for (const key of SIGNAL_KEYS) {
+          const sig = signals[key];
+          if (sig?.fire && sig?.cue) onSignalFire(key, sig.cue);
         }
+      } catch {
+        // ignore malformed frames
       }
-    } catch (err: unknown) {
-      consecutiveErrors++;
-      const msg = err instanceof Error ? err.message : 'Overshoot error';
-      console.error('[Overshoot]', msg);
-      // Only surface to UI on first error, not on every frame
-      if (consecutiveErrors === 1) {
-        onError?.(msg);
-      }
-    }
-  }, 800);
+    };
+    ws.onerror = () => onError?.('Overshoot WebSocket error');
+    ws.onclose = (e) => {
+      if (!stopped && !e.wasClean) onError?.('Overshoot connection closed unexpectedly');
+    };
+  }
 
-  return () => clearInterval(intervalId);
+  init().catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : 'Overshoot init failed';
+    console.error('[Overshoot]', msg);
+    onError?.(msg);
+  });
+
+  return () => {
+    stopped = true;
+    if (keepaliveId) clearInterval(keepaliveId);
+    try { ws?.close(); } catch { /* ignore */ }
+    try { pc?.close(); } catch { /* ignore */ }
+  };
 }

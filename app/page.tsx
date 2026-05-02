@@ -116,16 +116,14 @@ export default function Home() {
     const elKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY ?? '';
     if (voiceId && elKey) openElevenLabsSocket(voiceId, elKey);
 
-    // Start Overshoot frame loop
+    // Start Overshoot stream
     setOvershootError(null);
-    if (videoRef.current) {
-      overshootStopRef.current = startOvershootLoop(
-        videoRef.current,
-        onSignalFire,
-        setCurrentSignals,
-        (msg) => setOvershootError(msg)
-      );
-    }
+    overshootStopRef.current = startOvershootLoop(
+      streamRef.current,
+      onSignalFire,
+      setCurrentSignals,
+      (msg) => setOvershootError(msg)
+    );
 
     // Start Whisper audio pipeline
     whisperStopRef.current = startWhisperPipeline(
