@@ -62,7 +62,21 @@ export function startOvershootLoop(
   onError?: OvershootErrorCallback
 ): () => void {
   const apiKey = process.env.NEXT_PUBLIC_OVERSHOOT_API_KEY ?? '';
-  if (!apiKey) { onError?.('NEXT_PUBLIC_OVERSHOOT_API_KEY not set'); return () => {}; }
+  if (!apiKey) {
+    const msg = 'NEXT_PUBLIC_OVERSHOOT_API_KEY not set';
+    console.error('[Overshoot]', msg);
+    onError?.(msg);
+    return () => {};
+  }
+
+  console.log('[Overshoot] init — API_URL:', API_URL, 'key prefix:', apiKey.slice(0, 8));
+
+  // Use the same TURN servers the SDK uses internally — required for WebRTC relay through NAT
+  const ICE_SERVERS: RTCIceServer[] = [
+    { urls: 'turn:turn.overshoot.ai:3478?transport=udp', username: '1769538895:c66a907c-61f4-4ec2-93a6-9d6b932776bb', credential: 'Fu9L4CwyYZvsOLc+23psVAo3i/Y=' },
+    { urls: 'turn:turn.overshoot.ai:3478?transport=tcp', username: '1769538895:c66a907c-61f4-4ec2-93a6-9d6b932776bb', credential: 'Fu9L4CwyYZvsOLc+23psVAo3i/Y=' },
+    { urls: 'turns:turn.overshoot.ai:443?transport=udp', username: '1769538895:c66a907c-61f4-4ec2-93a6-9d6b932776bb', credential: 'Fu9L4CwyYZvsOLc+23psVAo3i/Y=' },
+  ];
 
   const client = new StreamClient({ baseUrl: API_URL, apiKey });
   let pc: RTCPeerConnection | null = null;
@@ -71,23 +85,29 @@ export function startOvershootLoop(
   let stopped = false;
 
   async function init() {
-    const videoTrack = stream.getVideoTracks()[0];
-    if (!videoTrack) throw new Error('No video track in stream');
+    const videoTracks = stream.getVideoTracks();
+    console.log('[Overshoot] video tracks:', videoTracks.length, videoTracks[0]?.label);
+    if (!videoTracks[0]) throw new Error('No video track in stream');
 
-    pc = new RTCPeerConnection();
-    pc.addTrack(videoTrack, stream);
+    pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    pc.addTrack(videoTracks[0], stream);
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
+    console.log('[Overshoot] ICE gathering started, state:', pc.iceGatheringState);
 
-    // Wait for ICE gathering to complete
+    // Wait for ICE gathering to complete (null candidate = done)
     await new Promise<void>((resolve) => {
       if (pc!.iceGatheringState === 'complete') { resolve(); return; }
-      pc!.onicecandidate = (e) => { if (e.candidate === null) resolve(); };
-      setTimeout(resolve, 3000); // fallback
+      pc!.onicecandidate = (e) => {
+        console.log('[Overshoot] ICE candidate:', e.candidate ? e.candidate.type : 'null (done)');
+        if (e.candidate === null) resolve();
+      };
+      setTimeout(() => { console.log('[Overshoot] ICE timeout fallback'); resolve(); }, 3000);
     });
 
     if (stopped) return;
+    console.log('[Overshoot] ICE done, calling createStream...');
 
     const response = await client.createStream({
       webrtc: { type: 'offer', sdp: pc.localDescription!.sdp },
@@ -105,24 +125,30 @@ export function startOvershootLoop(
       },
     });
 
+    console.log('[Overshoot] stream created, id:', response.stream_id);
     await pc.setRemoteDescription(response.webrtc);
+    console.log('[Overshoot] remote description set, connecting WebSocket...');
 
     if (stopped) return;
 
-    // Keepalive every 60s (lease is 300s)
     keepaliveId = setInterval(() => {
-      client.renewLease(response.stream_id).catch(() => {});
+      client.renewLease(response.stream_id).catch((e: unknown) => {
+        console.warn('[Overshoot] keepalive failed:', e);
+      });
     }, 60_000);
 
-    // WebSocket for inference results
     ws = client.connectWebSocket(response.stream_id);
+
     ws.onopen = () => {
+      console.log('[Overshoot] WebSocket open, authenticating...');
       ws!.send(JSON.stringify({ api_key: apiKey }));
     };
+
     ws.onmessage = (event) => {
       if (stopped) return;
       try {
         const msg = JSON.parse(event.data as string);
+        console.log('[Overshoot] message ok:', msg.ok, 'result:', msg.result?.slice(0, 80));
         if (!msg.ok || !msg.result) return;
         const signals: VisualSignals = JSON.parse(msg.result);
         onSignalsUpdate(signals);
@@ -130,19 +156,25 @@ export function startOvershootLoop(
           const sig = signals[key];
           if (sig?.fire && sig?.cue) onSignalFire(key, sig.cue);
         }
-      } catch {
-        // ignore malformed frames
+      } catch (e) {
+        console.warn('[Overshoot] parse error:', e);
       }
     };
-    ws.onerror = () => onError?.('Overshoot WebSocket error');
+
+    ws.onerror = (e) => {
+      console.error('[Overshoot] WebSocket error', e);
+      onError?.('Overshoot WebSocket error');
+    };
+
     ws.onclose = (e) => {
-      if (!stopped && !e.wasClean) onError?.('Overshoot connection closed unexpectedly');
+      console.log('[Overshoot] WebSocket closed — code:', e.code, 'clean:', e.wasClean, 'reason:', e.reason);
+      if (!stopped && !e.wasClean) onError?.(`Overshoot disconnected (${e.code})`);
     };
   }
 
   init().catch((err: unknown) => {
     const msg = err instanceof Error ? err.message : 'Overshoot init failed';
-    console.error('[Overshoot]', msg);
+    console.error('[Overshoot] init error:', msg);
     onError?.(msg);
   });
 
