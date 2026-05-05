@@ -24,6 +24,11 @@ let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let activeVoiceId = '';
 let activeApiKey = '';
 let pendingAudioChunks: string[] = [];
+let audioEnabled = true;
+
+export function setAudioEnabled(enabled: boolean): void {
+  audioEnabled = enabled;
+}
 
 export function openElevenLabsSocket(voiceId: string, apiKey: string): void {
   if (ws && ws.readyState === WebSocket.OPEN) return;
@@ -101,6 +106,7 @@ export function closeElevenLabsSocket(): void {
 }
 
 function speakViaElevenLabs(text: string): void {
+  if (!audioEnabled) return;
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   try {
     pendingAudioChunks = [];

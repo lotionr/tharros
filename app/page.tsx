@@ -11,6 +11,7 @@ import {
   closeElevenLabsSocket,
   initDebounceEngine,
   onSignalFire,
+  setAudioEnabled,
 } from '@/lib/elevenlabs';
 
 function formatTime(seconds: number): string {
@@ -35,6 +36,7 @@ export default function Home() {
   const [processing, setProcessing] = useState(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
   const [overshootError, setOvershootError] = useState<string | null>(null);
+  const [audioFeedback, setAudioFeedback] = useState(true);
 
   // Rolling average of last 4 Overshoot scores per signal key
   const scoreHistoryRef = useRef<Record<string, number[]>>({});
@@ -125,6 +127,7 @@ export default function Home() {
 
     // Init debounce engine + ElevenLabs
     initDebounceEngine(now, addChapterCue, addCueLog);
+    setAudioEnabled(audioFeedback);
     const voiceId = process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID ?? '';
     const elKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY ?? '';
     if (voiceId && elKey) openElevenLabsSocket(voiceId, elKey);
@@ -170,7 +173,14 @@ export default function Home() {
     timerRef.current = setInterval(() => {
       setElapsed((s) => s + 1);
     }, 1000);
-  }, [resetSession, setSessionActive, setCurrentSignals, addChapterCue, addCueLog, setLatestTranscript, incrementFillerCount]);
+  }, [resetSession, setSessionActive, setCurrentSignals, addChapterCue, addCueLog, setLatestTranscript, incrementFillerCount, audioFeedback]);
+
+  const handleAudioToggle = useCallback(() => {
+    setAudioFeedback((prev) => {
+      setAudioEnabled(!prev);
+      return !prev;
+    });
+  }, []);
 
   const stopSession = useCallback(async () => {
     overshootStopRef.current?.();
@@ -286,7 +296,7 @@ export default function Home() {
       </div>
 
       {/* Controls */}
-      <div className="mt-5 flex flex-col items-center gap-2">
+      <div className="mt-5 flex flex-col items-center gap-3">
         {!processing && (
           <button
             disabled={!cameraReady || !!cameraError}
@@ -296,6 +306,20 @@ export default function Home() {
             }`}
           >
             {isSessionActive ? 'Stop Session' : 'Start Session'}
+          </button>
+        )}
+        {/* Audio feedback toggle */}
+        {!processing && (
+          <button
+            onClick={handleAudioToggle}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              audioFeedback
+                ? 'bg-gray-700 text-green-400 hover:bg-gray-600'
+                : 'bg-gray-800 text-gray-500 hover:bg-gray-700'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${audioFeedback ? 'bg-green-400' : 'bg-gray-600'}`} />
+            Audio coaching {audioFeedback ? 'on' : 'off'}
           </button>
         )}
         {isSessionActive && (
