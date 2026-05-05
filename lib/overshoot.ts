@@ -73,10 +73,12 @@ export function startOvershootLoop(
   console.log('[Overshoot] init — API_URL:', API_URL, 'key prefix:', apiKey.slice(0, 8));
 
   // Use the same TURN servers the SDK uses internally — required for WebRTC relay through NAT
+  const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME ?? '';
+  const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL ?? '';
   const ICE_SERVERS: RTCIceServer[] = [
-    { urls: 'turn:turn.overshoot.ai:3478?transport=udp', username: '1769538895:c66a907c-61f4-4ec2-93a6-9d6b932776bb', credential: 'Fu9L4CwyYZvsOLc+23psVAo3i/Y=' },
-    { urls: 'turn:turn.overshoot.ai:3478?transport=tcp', username: '1769538895:c66a907c-61f4-4ec2-93a6-9d6b932776bb', credential: 'Fu9L4CwyYZvsOLc+23psVAo3i/Y=' },
-    { urls: 'turns:turn.overshoot.ai:443?transport=udp', username: '1769538895:c66a907c-61f4-4ec2-93a6-9d6b932776bb', credential: 'Fu9L4CwyYZvsOLc+23psVAo3i/Y=' },
+    { urls: 'turn:turn.overshoot.ai:3478?transport=udp', username: turnUsername, credential: turnCredential },
+    { urls: 'turn:turn.overshoot.ai:3478?transport=tcp', username: turnUsername, credential: turnCredential },
+    { urls: 'turns:turn.overshoot.ai:443?transport=udp', username: turnUsername, credential: turnCredential },
   ];
 
   const client = new StreamClient({ baseUrl: API_URL, apiKey });
